@@ -1,0 +1,1637 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>굴착기 조종 레버 시뮬레이터 (ISO 표준)</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      font-family: 'Noto Sans KR', 'Inter', sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+      user-select: none;
+    }
+    .stick-pad {
+      touch-action: none;
+      background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+    }
+    .active-dir {
+      color: #facc15 !important;
+      font-weight: 800;
+      text-shadow: 0 0 10px rgba(250, 204, 21, 0.5);
+    }
+    @keyframes pulseRing {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.03); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .mission-pulse {
+      animation: pulseRing 1.8s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <!-- Top Header -->
+  <header class="bg-slate-900/90 border-b border-slate-800 px-4 py-3 sticky top-0 z-30 backdrop-blur">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xl shadow-lg shadow-amber-500/20">
+          🚜
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">굴착기 조종 레버 시뮬레이터</h1>
+          <p class="text-xs text-slate-400">ISO 표준 (좌: 암·선회 / 우: 붐·버킷) · 조이스틱 &amp; 키보드 지원</p>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Student Info Badge -->
+        <button id="btnStudentModal" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer bg-slate-800 border-slate-700 hover:border-emerald-400">
+          <span>🎓</span>
+          <span id="studentBadgeText" class="text-slate-300">응시자: 미등록</span>
+        </button>
+
+        <!-- Teacher Management Mode -->
+        <button id="btnTeacherModal" class="px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer bg-indigo-600/20 border-indigo-500/50 text-indigo-300 hover:bg-indigo-600/35">
+          👩‍🏫 교사용 관리
+        </button>
+
+        <!-- Joystick Connection Status -->
+        <button id="btnJoystickModal" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer bg-slate-800 border-slate-700 hover:border-amber-500/60">
+          <span id="gamepadDot" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+          <span id="gamepadStatusText">조이스틱 미연결 (키보드/마우스)</span>
+          <span class="text-slate-400">⚙️</span>
+        </button>
+
+        <!-- Memorization Hide Labels Toggle -->
+        <button id="btnToggleLabels" class="px-3 py-1.5 rounded-lg text-xs font-semibold border bg-slate-800 border-slate-700 hover:border-sky-400 transition cursor-pointer">
+          👁️ 레버 라벨: <span id="labelToggleState" class="text-sky-400">표시</span>
+        </button>
+
+        <!-- Sound Toggle -->
+        <button id="btnMute" class="px-3 py-1.5 rounded-lg text-xs font-semibold border bg-slate-800 border-slate-700 hover:border-slate-500 transition cursor-pointer">
+          🔊 효과음 켜짐
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mode Selector Bar -->
+  <div class="bg-slate-900/50 border-b border-slate-800/80 px-4 py-2.5">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      <div class="flex flex-wrap gap-2" role="tablist">
+        <button data-mode="free" class="mode-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer bg-amber-500 text-slate-950">
+          1. 자유 연습 모드
+        </button>
+        <button data-mode="drill" class="mode-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer bg-slate-800 text-slate-300 hover:bg-slate-700">
+          2. 레버 암기 퀴즈 (10문제)
+        </button>
+        <button data-mode="challenge" class="mode-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer bg-slate-800 text-slate-300 hover:bg-slate-700">
+          3. 실전 굴착·상차 미션
+        </button>
+      </div>
+
+      <div class="flex items-center gap-4 text-xs sm:text-sm">
+        <div class="flex items-center gap-1.5">
+          <span class="text-slate-400">점수</span>
+          <span id="scoreValue" class="font-extrabold text-amber-400 text-base">0</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="text-slate-400">연속 정답</span>
+          <span id="comboValue" class="font-extrabold text-emerald-400 text-base">0</span>
+        </div>
+        <button id="btnResetPose" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 cursor-pointer">
+          자세 초기화
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Workspace -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
+    <!-- Left Column: Excavator Canvas & Mission Banner -->
+    <div class="lg:col-span-8 flex flex-col gap-3">
+      <!-- Mission / Feedback Banner -->
+      <div id="missionCard" class="rounded-xl border border-slate-700/80 bg-slate-800/80 p-3.5 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex-1 min-w-[220px]">
+          <div class="flex items-center gap-2 mb-1">
+            <span id="missionBadge" class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">자유 연습</span>
+            <span id="missionProgress" class="text-xs text-slate-400"></span>
+          </div>
+          <h2 id="missionTitle" class="text-base sm:text-lg font-extrabold text-white">조이스틱이나 키보드로 굴착기를 자유롭게 움직여 보세요!</h2>
+          <p id="missionFeedback" class="text-xs sm:text-sm text-slate-300 mt-0.5">레버를 움직이면 해당 관절과 조작 방향이 실시간으로 표시됩니다.</p>
+        </div>
+        <div id="missionActionArea" class="flex items-center gap-2">
+          <button id="btnStartDrill" class="hidden px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs sm:text-sm cursor-pointer transition">
+            퀴즈 시작하기
+          </button>
+          <button id="btnStartChallenge" class="hidden px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs sm:text-sm cursor-pointer transition">
+            미션 다시 시작
+          </button>
+          <button id="btnSaveChallenge" class="hidden px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white font-extrabold text-xs sm:text-sm cursor-pointer transition">
+            평가 완료·저장
+          </button>
+        </div>
+      </div>
+
+      <!-- Canvas Container -->
+      <div class="relative rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden shadow-2xl flex-1 min-h-[340px] sm:min-h-[420px]">
+        <canvas id="simCanvas" class="w-full h-full block"></canvas>
+
+        <!-- Live Active Action Overlay -->
+        <div id="activeActionOverlay" class="absolute top-3 left-3 flex flex-wrap gap-1.5 pointer-events-none"></div>
+
+        <!-- Angle Telemetry Bottom Bar -->
+        <div class="absolute bottom-2.5 left-3 right-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-300 bg-slate-900/80 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-800 pointer-events-none">
+          <div class="flex flex-wrap gap-3">
+            <span>선회(Swing): <strong id="telSwing" class="text-amber-300">0°</strong></span>
+            <span>붐(Boom): <strong id="telBoom" class="text-sky-300">42°</strong></span>
+            <span>암(Arm): <strong id="telArm" class="text-emerald-300">-68°</strong></span>
+            <span>버킷(Bucket): <strong id="telBucket" class="text-rose-300">-35°</strong></span>
+          </div>
+          <span id="telSoil" class="text-slate-400">버킷 상태: 비어 있음</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Dual Joysticks & Quick Reference -->
+    <div class="lg:col-span-4 flex flex-col gap-3">
+      <!-- Dual Joystick Panel -->
+      <div class="rounded-2xl border border-slate-800 bg-slate-900/90 p-4 flex flex-col gap-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-extrabold text-white">조종 레버 (ISO 표준)</h3>
+          <span class="text-[11px] text-slate-400">마우스 드래그 · 키보드 · USB 조이스틱</span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <!-- LEFT LEVER -->
+          <div class="flex flex-col items-center bg-slate-950/70 rounded-xl p-2.5 border border-slate-800">
+            <div class="text-xs font-bold text-sky-400 mb-0.5">좌측 레버 (Left)</div>
+            <div class="text-[10px] text-slate-400 mb-2">암(Arm) · 선회(Swing)</div>
+
+            <div class="grid grid-cols-[auto_auto_auto] grid-rows-[auto_auto_auto] items-center justify-items-center gap-1.5">
+              <div></div>
+              <span id="lblLUp" class="lever-lbl text-[10px] font-semibold text-slate-300 text-center leading-tight">▲ 암 펴기 <span class="text-[9px] text-slate-500">(W)</span></span>
+              <div></div>
+
+              <span id="lblLLeft" class="lever-lbl text-[10px] font-semibold text-slate-300 text-right leading-tight whitespace-nowrap">◀ 좌선회<br><span class="text-[9px] text-slate-500">(A)</span></span>
+              <div id="leftPad" class="stick-pad w-[72px] h-[72px] rounded-full border-2 border-slate-700 relative flex items-center justify-center cursor-grab active:cursor-grabbing shadow-inner">
+                <div class="w-full h-[1px] bg-slate-800 absolute"></div>
+                <div class="h-full w-[1px] bg-slate-800 absolute"></div>
+                <div id="leftKnob" class="w-7 h-7 rounded-full bg-gradient-to-br from-sky-400 to-sky-600 border-2 border-white/80 shadow-lg pointer-events-none transition-transform duration-75"></div>
+              </div>
+              <span id="lblLRight" class="lever-lbl text-[10px] font-semibold text-slate-300 text-left leading-tight whitespace-nowrap">우선회 ▶<br><span class="text-[9px] text-slate-500">(D)</span></span>
+
+              <div></div>
+              <span id="lblLDown" class="lever-lbl text-[10px] font-semibold text-slate-300 text-center leading-tight">▼ 암 접기 <span class="text-[9px] text-slate-500">(S)</span></span>
+              <div></div>
+            </div>
+          </div>
+
+          <!-- RIGHT LEVER -->
+          <div class="flex flex-col items-center bg-slate-950/70 rounded-xl p-2.5 border border-slate-800">
+            <div class="text-xs font-bold text-amber-400 mb-0.5">우측 레버 (Right)</div>
+            <div class="text-[10px] text-slate-400 mb-2">붐(Boom) · 버킷(Bucket)</div>
+
+            <div class="grid grid-cols-[auto_auto_auto] grid-rows-[auto_auto_auto] items-center justify-items-center gap-1.5">
+              <div></div>
+              <span id="lblRUp" class="lever-lbl text-[10px] font-semibold text-slate-300 text-center leading-tight">▲ 붐 내림 <span class="text-[9px] text-slate-500">(I/↑)</span></span>
+              <div></div>
+
+              <span id="lblRLeft" class="lever-lbl text-[10px] font-semibold text-slate-300 text-right leading-tight whitespace-nowrap">◀ 버킷 접기<br><span class="text-[9px] text-slate-500">(J/←)</span></span>
+              <div id="rightPad" class="stick-pad w-[72px] h-[72px] rounded-full border-2 border-slate-700 relative flex items-center justify-center cursor-grab active:cursor-grabbing shadow-inner">
+                <div class="w-full h-[1px] bg-slate-800 absolute"></div>
+                <div class="h-full w-[1px] bg-slate-800 absolute"></div>
+                <div id="rightKnob" class="w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 border-2 border-white/80 shadow-lg pointer-events-none transition-transform duration-75"></div>
+              </div>
+              <span id="lblRRight" class="lever-lbl text-[10px] font-semibold text-slate-300 text-left leading-tight whitespace-nowrap">버킷 펴기 ▶<br><span class="text-[9px] text-slate-500">(L/→)</span></span>
+
+              <div></div>
+              <span id="lblRDown" class="lever-lbl text-[10px] font-semibold text-slate-300 text-center leading-tight">▼ 붐 올림 <span class="text-[9px] text-slate-500">(K/↓)</span></span>
+              <div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Keyboard Quick Hint -->
+        <div id="memoryTipBox" class="text-[11px] text-slate-400 bg-slate-950/60 rounded-lg p-2.5 border border-slate-800/80 leading-relaxed">
+          <strong class="text-slate-200">💡 암기 팁:</strong>
+          <span class="text-sky-300">좌측 레버</span>는 <strong>몸통(선회)과 앞팔(암)</strong>,
+          <span class="text-amber-300">우측 레버</span>는 <strong>큰팔(붐)과 손(버킷)</strong>을 담당합니다.
+          앞으로 밀면 팔(암)은 펴지고, 붐은 내려갑니다!
+        </div>
+      </div>
+
+      <!-- Recent Log / Drill Summary -->
+      <div class="rounded-2xl border border-slate-800 bg-slate-900/90 p-4 flex-1 flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-extrabold text-white">실시간 조작 &amp; 채점 기록</h3>
+          <button id="btnClearLog" class="text-[11px] text-slate-400 hover:text-white cursor-pointer">지우기</button>
+        </div>
+        <div id="logList" class="flex-1 max-h-48 overflow-y-auto space-y-1.5 text-xs pr-1">
+          <div class="text-slate-500 italic">레버를 조작하면 기록이 표시됩니다.</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Drill Result Modal -->
+  <div id="resultModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+      <h3 class="text-xl font-extrabold text-white mb-1">레버 암기 퀴즈 결과</h3>
+      <p class="text-xs text-slate-400 mb-4">10문제 평가가 완료되었습니다.</p>
+
+      <div class="grid grid-cols-3 gap-2 mb-4 text-center">
+        <div class="bg-slate-800 rounded-xl p-3">
+          <div class="text-[11px] text-slate-400">총점</div>
+          <div id="resScore" class="text-lg font-extrabold text-amber-400">0</div>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-3">
+          <div class="text-[11px] text-slate-400">정확도</div>
+          <div id="resAccuracy" class="text-lg font-extrabold text-emerald-400">0%</div>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-3">
+          <div class="text-[11px] text-slate-400">최대 콤보</div>
+          <div id="resMaxCombo" class="text-lg font-extrabold text-sky-400">0</div>
+        </div>
+      </div>
+
+      <div class="bg-slate-950/70 border border-slate-800 rounded-xl p-3 mb-5">
+        <div class="text-xs font-bold text-slate-300 mb-1.5">집중 복습이 필요한 동작</div>
+        <div id="resWeakness" class="text-xs text-slate-400 leading-relaxed">모든 동작을 정확하게 수행했습니다!</div>
+      </div>
+
+      <div id="resSavedNotice" class="hidden text-xs text-emerald-400 font-semibold mb-4 text-center">
+        ✅ 교사용 관리함에 수행평가 기록이 저장되었습니다.
+      </div>
+
+      <div class="flex gap-2 justify-end">
+        <button id="btnCloseResult" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 cursor-pointer">닫기</button>
+        <button id="btnRetryDrill" class="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-xs font-extrabold text-slate-950 cursor-pointer">다시 도전하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Student Registration Modal (Before Assessment) -->
+  <div id="studentModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-5 shadow-2xl">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="text-lg font-extrabold text-white">수행평가 응시자 정보 입력</h3>
+        <button id="btnCloseStudentModal" class="text-slate-400 hover:text-white text-lg cursor-pointer">✕</button>
+      </div>
+      <p class="text-xs text-slate-400 mb-4">학번과 이름을 입력하고 시작하면, 완료된 점수와 취약 동작이 교사용 관리함에 자동 보관됩니다.</p>
+
+      <div class="space-y-3 mb-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1">학번 (Student ID)</label>
+          <input id="inpStudentId" type="text" placeholder="예: 20315" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-amber-500" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1">이름 (Name)</label>
+          <input id="inpStudentName" type="text" placeholder="예: 김민수" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-amber-500" />
+        </div>
+        <div id="studentFormError" class="hidden text-xs text-rose-400 font-semibold">학번과 이름을 모두 입력해 주세요.</div>
+      </div>
+
+      <div class="flex flex-wrap gap-2 justify-end">
+        <button id="btnPracticeWithoutSave" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 cursor-pointer">연습만 하기 (저장 안 함)</button>
+        <button id="btnConfirmStudent" class="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-xs font-extrabold text-slate-950 cursor-pointer">등록하고 시작</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Teacher Management Modal -->
+  <div id="teacherModal" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-4xl w-full p-5 shadow-2xl max-h-[90vh] flex flex-col">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div>
+          <h3 class="text-lg font-extrabold text-white">👩‍🏫 교사용 수행평가 관리 모드</h3>
+          <p class="text-xs text-slate-400">학생별 암기 퀴즈 및 실전 작업 점수가 브라우저에 자동 보관됩니다.</p>
+        </div>
+        <button id="btnCloseTeacherModal" class="text-slate-400 hover:text-white text-lg cursor-pointer">✕</button>
+      </div>
+
+      <!-- Summary Cards -->
+      <div class="grid grid-cols-3 gap-3 mb-3">
+        <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3 text-center">
+          <div class="text-[11px] text-slate-400">총 평가 기록</div>
+          <div id="tchTotalCount" class="text-lg font-extrabold text-white">0건</div>
+        </div>
+        <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3 text-center">
+          <div class="text-[11px] text-slate-400">평균 점수</div>
+          <div id="tchAvgScore" class="text-lg font-extrabold text-amber-400">0점</div>
+        </div>
+        <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3 text-center">
+          <div class="text-[11px] text-slate-400">최고 점수</div>
+          <div id="tchMaxScore" class="text-lg font-extrabold text-emerald-400">0점</div>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <input id="inpSearchRecords" type="text" placeholder="학번 또는 이름 검색..." class="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white w-56 focus:outline-none focus:border-indigo-400" />
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="btnExportCSV" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer">📥 엑셀(CSV) 다운로드</button>
+          <button id="btnClearAllRecords" class="px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/40 text-rose-300 text-xs font-bold cursor-pointer">🗑️ 전체 기록 삭제</button>
+        </div>
+      </div>
+
+      <!-- Confirm Clear Banner -->
+      <div id="confirmClearBanner" class="hidden mb-3 p-2.5 rounded-lg bg-rose-950/70 border border-rose-700 flex items-center justify-between text-xs">
+        <span class="text-rose-200 font-semibold">정말로 모든 수행평가 기록을 삭제하시겠습니까?</span>
+        <div class="flex gap-2">
+          <button id="btnCancelClear" class="px-2.5 py-1 rounded bg-slate-800 text-slate-200 cursor-pointer">취소</button>
+          <button id="btnConfirmClear" class="px-2.5 py-1 rounded bg-rose-600 text-white font-bold cursor-pointer">삭제 확인</button>
+        </div>
+      </div>
+
+      <!-- Records Table -->
+      <div class="flex-1 overflow-auto border border-slate-800 rounded-xl bg-slate-950/60">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-slate-800/90 text-slate-300 sticky top-0">
+            <tr>
+              <th class="px-3 py-2.5 font-bold">학번</th>
+              <th class="px-3 py-2.5 font-bold">이름</th>
+              <th class="px-3 py-2.5 font-bold">평가 유형</th>
+              <th class="px-3 py-2.5 font-bold text-right">점수</th>
+              <th class="px-3 py-2.5 font-bold">상세 결과</th>
+              <th class="px-3 py-2.5 font-bold">취약 동작</th>
+              <th class="px-3 py-2.5 font-bold">응시 일시</th>
+              <th class="px-3 py-2.5 font-bold text-center">삭제</th>
+            </tr>
+          </thead>
+          <tbody id="teacherTableBody" class="divide-y divide-slate-800/80 text-slate-300">
+            <tr><td colspan="8" class="px-4 py-8 text-center text-slate-500">아직 저장된 수행평가 기록이 없습니다.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Joystick Settings Modal -->
+  <div id="joystickModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-5 shadow-2xl">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-lg font-extrabold text-white">USB 조이스틱 연결 및 축 설정</h3>
+        <button id="btnCloseJoystickModal" class="text-slate-400 hover:text-white text-lg cursor-pointer">✕</button>
+      </div>
+      <p class="text-xs text-slate-300 leading-relaxed mb-3">
+        노트북에 USB 조이스틱(또는 게임패드)을 꽂은 뒤 <strong>아무 버튼이나 스틱을 움직이면</strong> 브라우저가 자동으로 인식합니다.
+      </p>
+
+      <div id="gamepadInfoBox" class="bg-slate-950 border border-slate-800 rounded-xl p-3 mb-4 text-xs text-slate-300">
+        연결된 장치를 기다리는 중...
+      </div>
+
+      <div class="space-y-3 text-xs mb-4">
+        <div class="flex items-center justify-between">
+          <span>좌측 스틱 Y축 반전 (밀기/당기기 방향 반대일 때)</span>
+          <input id="chkInvLY" type="checkbox" class="w-4 h-4 accent-amber-500 cursor-pointer" />
+        </div>
+        <div class="flex items-center justify-between">
+          <span>우측 스틱 Y축 반전 (밀기/당기기 방향 반대일 때)</span>
+          <input id="chkInvRY" type="checkbox" class="w-4 h-4 accent-amber-500 cursor-pointer" />
+        </div>
+        <div class="flex items-center justify-between">
+          <span>좌/우 스틱 서로 바꾸기 (1P/2P 조이스틱 순서 변경)</span>
+          <input id="chkSwapSticks" type="checkbox" class="w-4 h-4 accent-amber-500 cursor-pointer" />
+        </div>
+        <div class="flex items-center justify-between gap-4">
+          <span>데드존(민감도 조절): <strong id="deadzoneVal">0.20</strong></span>
+          <input id="rngDeadzone" type="range" min="0.08" max="0.45" step="0.02" value="0.20" class="w-36 accent-amber-500 cursor-pointer" />
+        </div>
+      </div>
+
+      <div class="flex justify-end">
+        <button id="btnSaveJoystick" class="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs cursor-pointer">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================
+    // 1. State & Constants
+    // =========================================================
+    const state = {
+      mode: 'free', // 'free' | 'drill' | 'challenge'
+      showLabels: true,
+      muted: false,
+      score: 0,
+      combo: 0,
+      maxCombo: 0,
+
+      // Excavator joint angles (degrees)
+      swing: 0,      // -180 to 180 (0 = facing right in side view)
+      boom: 42,      // 12 (low) to 75 (high)
+      arm: -68,      // -130 (curled in) to -25 (extended out)
+      bucket: -35,   // -115 (curled/dig) to 35 (dumped)
+      hasSoil: false,
+
+      // Stick inputs (-1 to +1)
+      // Y: negative = push forward (up on screen), positive = pull back (down on screen)
+      leftX: 0, leftY: 0,
+      rightX: 0, rightY: 0,
+
+      // Gamepad settings
+      invertLY: false,
+      invertRY: false,
+      swapSticks: false,
+      deadzone: 0.20,
+
+      // Drill mode
+      drillActive: false,
+      drillIndex: 0,
+      drillTotal: 10,
+      drillCorrectCount: 0,
+      drillCurrentTask: null,
+      drillCooldown: 0,
+      drillWaitingNeutral: false,
+      returningToDefault: false,
+      drillMistakes: {},
+
+      // Challenge mode
+      challengeStep: 0,
+      challengeRunning: false,
+      truckSoil: 0,
+
+      // Student & Teacher Assessment Records
+      studentId: '',
+      studentName: '',
+      pendingMode: null,
+      records: []
+    };
+
+    const STORAGE_KEY = 'excavator_sim_records_v1';
+    function loadRecords() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        state.records = raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        state.records = [];
+      }
+    }
+    function saveRecords() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state.records));
+      } catch (e) {}
+    }
+    loadRecords();
+
+    const ACTIONS = [
+      { id: 'arm_out',    name: '암 펴기 (밀기)',   lever: '좌측 레버 ▲ 앞', check: (lx, ly, rx, ry) => ly < -0.45 },
+      { id: 'arm_in',     name: '암 접기 (당기기)', lever: '좌측 레버 ▼ 뒤', check: (lx, ly, rx, ry) => ly > 0.45 },
+      { id: 'swing_left', name: '좌선회',           lever: '좌측 레버 ◀ 좌', check: (lx, ly, rx, ry) => lx < -0.45 },
+      { id: 'swing_right',name: '우선회',           lever: '좌측 레버 ▶ 우', check: (lx, ly, rx, ry) => lx > 0.45 },
+      { id: 'boom_down',  name: '붐 내리기',        lever: '우측 레버 ▲ 앞', check: (lx, ly, rx, ry) => ry < -0.45 },
+      { id: 'boom_up',    name: '붐 올리기',        lever: '우측 레버 ▼ 뒤', check: (lx, ly, rx, ry) => ry > 0.45 },
+      { id: 'bucket_curl',name: '버킷 접기 (굴착)', lever: '우측 레버 ◀ 좌', check: (lx, ly, rx, ry) => rx < -0.45 },
+      { id: 'bucket_dump',name: '버킷 펴기 (쏟기)', lever: '우측 레버 ▶ 우', check: (lx, ly, rx, ry) => rx > 0.45 }
+    ];
+
+    // =========================================================
+    // 2. Web Audio Synthesizer
+    // =========================================================
+    let audioCtx = null;
+    function playTone(freq, duration, type = 'sine', gainVal = 0.08) {
+      if (state.muted) return;
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    function sfxCorrect() {
+      playTone(587.33, 0.1, 'triangle', 0.12);
+      setTimeout(() => playTone(880, 0.18, 'triangle', 0.12), 80);
+    }
+    function sfxWrong() {
+      playTone(220, 0.18, 'sawtooth', 0.08);
+      setTimeout(() => playTone(165, 0.22, 'sawtooth', 0.08), 100);
+    }
+    function sfxStep() {
+      playTone(660, 0.12, 'sine', 0.1);
+      setTimeout(() => playTone(990, 0.2, 'sine', 0.1), 90);
+    }
+
+    // =========================================================
+    // 3. DOM References
+    // =========================================================
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    const leftPad = document.getElementById('leftPad');
+    const rightPad = document.getElementById('rightPad');
+    const leftKnob = document.getElementById('leftKnob');
+    const rightKnob = document.getElementById('rightKnob');
+
+    // =========================================================
+    // 4. Input Handling (Keyboard + Mouse/Touch + Gamepad API)
+    // =========================================================
+    const keysDown = new Set();
+    window.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) {
+        e.preventDefault();
+      }
+      keysDown.add(k);
+    });
+    window.addEventListener('keyup', (e) => {
+      keysDown.delete(e.key.toLowerCase());
+    });
+
+    const dragState = { left: false, right: false, lx: 0, ly: 0, rx: 0, ry: 0 };
+
+    function attachPadEvents(pad, side) {
+      const updateFromPointer = (clientX, clientY) => {
+        const rect = pad.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const maxR = rect.width / 2 - 12;
+        let dx = (clientX - cx) / maxR;
+        let dy = (clientY - cy) / maxR;
+        const mag = Math.hypot(dx, dy);
+        if (mag > 1) { dx /= mag; dy /= mag; }
+        if (side === 'left') { dragState.lx = dx; dragState.ly = dy; }
+        else { dragState.rx = dx; dragState.ry = dy; }
+      };
+
+      pad.addEventListener('pointerdown', (e) => {
+        pad.setPointerCapture(e.pointerId);
+        if (side === 'left') dragState.left = true; else dragState.right = true;
+        updateFromPointer(e.clientX, e.clientY);
+      });
+      pad.addEventListener('pointermove', (e) => {
+        if ((side === 'left' && dragState.left) || (side === 'right' && dragState.right)) {
+          updateFromPointer(e.clientX, e.clientY);
+        }
+      });
+      const release = () => {
+        if (side === 'left') { dragState.left = false; dragState.lx = 0; dragState.ly = 0; }
+        else { dragState.right = false; dragState.rx = 0; dragState.ry = 0; }
+      };
+      pad.addEventListener('pointerup', release);
+      pad.addEventListener('pointercancel', release);
+    }
+    attachPadEvents(leftPad, 'left');
+    attachPadEvents(rightPad, 'right');
+
+    function applyDeadzone(val, dz) {
+      if (Math.abs(val) < dz) return 0;
+      const sign = Math.sign(val);
+      return sign * ((Math.abs(val) - dz) / (1 - dz));
+    }
+
+    function pollInputs() {
+      let lx = 0, ly = 0, rx = 0, ry = 0;
+
+      // Keyboard
+      if (keysDown.has('a')) lx -= 1;
+      if (keysDown.has('d')) lx += 1;
+      if (keysDown.has('w')) ly -= 1;
+      if (keysDown.has('s')) ly += 1;
+
+      if (keysDown.has('j') || keysDown.has('arrowleft')) rx -= 1;
+      if (keysDown.has('l') || keysDown.has('arrowright')) rx += 1;
+      if (keysDown.has('i') || keysDown.has('arrowup')) ry -= 1;
+      if (keysDown.has('k') || keysDown.has('arrowdown')) ry += 1;
+
+      // Mouse/Touch drag
+      if (dragState.left) { lx = dragState.lx; ly = dragState.ly; }
+      if (dragState.right) { rx = dragState.rx; ry = dragState.ry; }
+
+      // Physical Gamepad(s)
+      const gamepads = navigator.getGamepads ? Array.from(navigator.getGamepads()).filter(Boolean) : [];
+      const dot = document.getElementById('gamepadDot');
+      const statusTxt = document.getElementById('gamepadStatusText');
+      const infoBox = document.getElementById('gamepadInfoBox');
+
+      if (gamepads.length > 0) {
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]';
+        statusTxt.textContent = gamepads.length >= 2
+          ? `듀얼 조이스틱 연결됨 (${gamepads.length}대)`
+          : `조이스틱 연결됨: ${gamepads[0].id.slice(0, 18)}...`;
+
+        let gpLX = 0, gpLY = 0, gpRX = 0, gpRY = 0;
+        if (gamepads.length >= 2) {
+          // Two separate USB joysticks
+          const g1 = state.swapSticks ? gamepads[1] : gamepads[0];
+          const g2 = state.swapSticks ? gamepads[0] : gamepads[1];
+          gpLX = applyDeadzone(g1.axes[0] || 0, state.deadzone);
+          gpLY = applyDeadzone(g1.axes[1] || 0, state.deadzone);
+          gpRX = applyDeadzone(g2.axes[0] || 0, state.deadzone);
+          gpRY = applyDeadzone(g2.axes[1] || 0, state.deadzone);
+        } else {
+          // Single dual-stick gamepad (axes 0,1 and 2,3)
+          const g = gamepads[0];
+          const rawLX = g.axes[0] || 0;
+          const rawLY = g.axes[1] || 0;
+          const rawRX = g.axes[2] !== undefined ? g.axes[2] : 0;
+          const rawRY = g.axes[3] !== undefined ? g.axes[3] : 0;
+          if (state.swapSticks) {
+            gpLX = applyDeadzone(rawRX, state.deadzone);
+            gpLY = applyDeadzone(rawRY, state.deadzone);
+            gpRX = applyDeadzone(rawLX, state.deadzone);
+            gpRY = applyDeadzone(rawLY, state.deadzone);
+          } else {
+            gpLX = applyDeadzone(rawLX, state.deadzone);
+            gpLY = applyDeadzone(rawLY, state.deadzone);
+            gpRX = applyDeadzone(rawRX, state.deadzone);
+            gpRY = applyDeadzone(rawRY, state.deadzone);
+          }
+        }
+
+        if (state.invertLY) gpLY = -gpLY;
+        if (state.invertRY) gpRY = -gpRY;
+
+        if (Math.abs(gpLX) > 0.05 || Math.abs(gpLY) > 0.05) { lx = gpLX; ly = gpLY; }
+        if (Math.abs(gpRX) > 0.05 || Math.abs(gpRY) > 0.05) { rx = gpRX; ry = gpRY; }
+
+        if (!document.getElementById('joystickModal').classList.contains('hidden')) {
+          infoBox.innerHTML = gamepads.map((g, i) => `
+            <div class="mb-2 last:mb-0">
+              <div class="font-bold text-emerald-400">장치 ${i + 1}: ${g.id}</div>
+              <div class="text-slate-400 mt-0.5">Axes: ${g.axes.slice(0, 4).map((a, idx) => `[${idx}]=${a.toFixed(2)}`).join(' · ')}</div>
+            </div>
+          `).join('');
+        }
+      } else {
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-slate-500';
+        statusTxt.textContent = '조이스틱 미연결 (키보드/마우스)';
+        if (!document.getElementById('joystickModal').classList.contains('hidden')) {
+          infoBox.textContent = '연결된 조이스틱이 감지되지 않았습니다. USB 조이스틱을 연결한 후 스틱이나 버튼을 움직여 주세요.';
+        }
+      }
+
+      state.leftX = lx;
+      state.leftY = ly;
+      state.rightX = rx;
+      state.rightY = ry;
+    }
+
+    // =========================================================
+    // 5. Logging & UI Sync
+    // =========================================================
+    let lastLogKey = '';
+    let lastLogTime = 0;
+    function addLog(msg, type = 'info') {
+      const now = Date.now();
+      if (msg === lastLogKey && now - lastLogTime < 900) return;
+      lastLogKey = msg;
+      lastLogTime = now;
+
+      const list = document.getElementById('logList');
+      if (list.children.length === 1 && list.children[0].classList.contains('italic')) {
+        list.innerHTML = '';
+      }
+      const colors = {
+        info: 'text-slate-300 border-slate-700 bg-slate-800/50',
+        good: 'text-emerald-300 border-emerald-700/60 bg-emerald-950/50',
+        bad: 'text-rose-300 border-rose-700/60 bg-rose-950/50'
+      };
+      const item = document.createElement('div');
+      item.className = `px-2.5 py-1.5 rounded-lg border ${colors[type] || colors.info}`;
+      item.textContent = msg;
+      list.prepend(item);
+      while (list.children.length > 25) list.removeChild(list.lastChild);
+    }
+
+    function updateStickVisuals() {
+      const maxOffset = 18;
+      leftKnob.style.transform = `translate(${state.leftX * maxOffset}px, ${state.leftY * maxOffset}px)`;
+      rightKnob.style.transform = `translate(${state.rightX * maxOffset}px, ${state.rightY * maxOffset}px)`;
+
+      // Highlight labels
+      const setLbl = (id, active) => document.getElementById(id).classList.toggle('active-dir', active);
+      setLbl('lblLUp', state.leftY < -0.35);
+      setLbl('lblLDown', state.leftY > 0.35);
+      setLbl('lblLLeft', state.leftX < -0.35);
+      setLbl('lblLRight', state.leftX > 0.35);
+
+      setLbl('lblRUp', state.rightY < -0.35);
+      setLbl('lblRDown', state.rightY > 0.35);
+      setLbl('lblRLeft', state.rightX < -0.35);
+      setLbl('lblRRight', state.rightX > 0.35);
+
+      // Active overlay pills (only shown in free practice, hidden in exam modes)
+      const overlay = document.getElementById('activeActionOverlay');
+      const active = ACTIONS.filter(a => a.check(state.leftX, state.leftY, state.rightX, state.rightY));
+      if (state.mode === 'free') {
+        overlay.innerHTML = active.map(a =>
+          `<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500 text-slate-950 shadow">${a.name}</span>`
+        ).join('');
+      } else {
+        overlay.innerHTML = '';
+      }
+
+      if (state.mode === 'free' && active.length > 0) {
+        addLog(`${active.map(a => `${a.lever} → ${a.name}`).join(' + ')}`, 'info');
+      }
+    }
+
+    // =========================================================
+    // 6. Drill & Challenge Logic
+    // =========================================================
+    function resetExcavatorPose() {
+      state.swing = 0;
+      state.boom = 42;
+      state.arm = -68;
+      state.bucket = -35;
+      state.hasSoil = false;
+      state.returningToDefault = false;
+    }
+
+    function startDrill() {
+      resetExcavatorPose();
+      state.drillActive = true;
+      state.drillIndex = 0;
+      state.drillCorrectCount = 0;
+      state.drillMistakes = {};
+      state.score = 0;
+      state.combo = 0;
+      state.maxCombo = 0;
+      state.drillCooldown = 0;
+      document.getElementById('btnStartDrill').classList.add('hidden');
+      nextDrillQuestion();
+      updateScoreUI();
+    }
+
+    function nextDrillQuestion() {
+      if (state.drillIndex >= state.drillTotal) {
+        finishDrill();
+        return;
+      }
+      state.drillIndex++;
+      const next = ACTIONS[Math.floor(Math.random() * ACTIONS.length)];
+      resetExcavatorPose();
+      state.drillCurrentTask = next;
+      state.drillWaitingNeutral = true;
+      holdTimer = 0;
+      document.getElementById('missionProgress').textContent = `문항 ${state.drillIndex}번 / ${state.drillTotal}`;
+      document.getElementById('missionTitle').innerHTML = `<span class="text-amber-400">[문항 ${state.drillIndex}번]</span> ${next.name} 동작을 수행하세요!`;
+      document.getElementById('missionFeedback').innerHTML = `<span class="text-sky-300">레버를 중립(가운데)에 둔 상태에서 조작을 시작하세요. (현재 총점: ${state.score}점)</span>`;
+    }
+
+    function finishDrill() {
+      state.drillActive = false;
+      state.drillCurrentTask = null;
+      document.getElementById('btnStartDrill').classList.remove('hidden');
+      document.getElementById('btnStartDrill').textContent = '다시 풀기';
+
+      const acc = Math.round((state.drillCorrectCount / state.drillTotal) * 100);
+      document.getElementById('resScore').textContent = state.score;
+      document.getElementById('resAccuracy').textContent = `${acc}%`;
+      document.getElementById('resMaxCombo').textContent = state.maxCombo;
+
+      const mistakes = Object.entries(state.drillMistakes).sort((a, b) => b[1] - a[1]);
+      const weakText = mistakes.length === 0
+        ? '없음 (만점)'
+        : mistakes.map(([name, cnt]) => `${name}(${cnt})`).join(', ');
+
+      document.getElementById('resWeakness').innerHTML = mistakes.length === 0
+        ? '<span class="text-emerald-400 font-bold">완벽합니다! 틀린 동작이 하나도 없습니다.</span>'
+        : mistakes.map(([name, cnt]) => `• <strong>${name}</strong> (${cnt}회 오답)`).join('<br>');
+
+      const savedNotice = document.getElementById('resSavedNotice');
+      if (state.studentId && state.studentName) {
+        addAssessmentRecord('레버 암기 퀴즈', state.score, `정확도 ${acc}% (최대 ${state.maxCombo}콤보)`, weakText);
+        savedNotice.classList.remove('hidden');
+      } else {
+        savedNotice.classList.add('hidden');
+      }
+
+      document.getElementById('resultModal').classList.remove('hidden');
+    }
+
+    let holdTimer = 0;
+    function processDrill(dt) {
+      if (!state.drillActive || !state.drillCurrentTask) return;
+
+      // Post-judgment cooldown: ignore all inputs so accidental follow-up moves aren't penalized
+      if (state.drillCooldown > 0) {
+        state.drillCooldown -= dt;
+        return;
+      }
+
+      // Require sticks to return to neutral center before grading the new question
+      if (state.drillWaitingNeutral) {
+        const isNeutral = Math.abs(state.leftX) < 0.22 && Math.abs(state.leftY) < 0.22 &&
+                          Math.abs(state.rightX) < 0.22 && Math.abs(state.rightY) < 0.22;
+        if (!isNeutral) {
+          document.getElementById('missionFeedback').innerHTML = '<span class="text-amber-300 font-semibold">⏳ 레버를 가운데(중립)로 놓으면 판정이 시작됩니다...</span>';
+          return;
+        }
+        state.drillWaitingNeutral = false;
+        document.getElementById('missionFeedback').innerHTML = `<span class="text-slate-300">레버를 해당 방향으로 0.3초간 조작하세요. (현재 총점: <strong class="text-amber-400">${state.score}점</strong>)</span>`;
+      }
+
+      const active = ACTIONS.filter(a => a.check(state.leftX, state.leftY, state.rightX, state.rightY));
+      if (active.length === 0) {
+        holdTimer = 0;
+        return;
+      }
+
+      const target = state.drillCurrentTask;
+      const isCorrect = active.some(a => a.id === target.id);
+
+      holdTimer += dt;
+      if (isCorrect && holdTimer >= 0.28) {
+        holdTimer = 0;
+        state.drillCorrectCount++;
+        state.combo++;
+        if (state.combo > state.maxCombo) state.maxCombo = state.combo;
+        const pts = 100 + (state.combo - 1) * 20;
+        state.score += pts;
+        sfxCorrect();
+        addLog(`✅ [문항 ${state.drillIndex}번] 정답! ${target.name} (+${pts}점)`, 'good');
+        document.getElementById('missionFeedback').innerHTML = `<span class="text-emerald-400 font-extrabold text-sm">⭕ 정답입니다! (+${pts}점 · 총점: ${state.score}점)</span>`;
+        state.drillCooldown = 1.8;
+        state.returningToDefault = true;
+        updateScoreUI();
+        setTimeout(() => { if (state.mode === 'drill' && state.drillActive) nextDrillQuestion(); }, 1600);
+      } else if (!isCorrect && holdTimer >= 0.30) {
+        holdTimer = 0;
+        state.combo = 0;
+        state.score = Math.max(0, state.score - 30);
+        state.drillMistakes[target.name] = (state.drillMistakes[target.name] || 0) + 1;
+        sfxWrong();
+        const wrongAct = active[0];
+        addLog(`❌ [문항 ${state.drillIndex}번] 오답 (${wrongAct.name} 조작)`, 'bad');
+        document.getElementById('missionFeedback').innerHTML = `<span class="text-rose-400 font-extrabold text-sm">❌ 틀렸습니다! (-30점 · 총점: ${state.score}점)</span>`;
+        state.drillCooldown = 1.8;
+        state.returningToDefault = true;
+        updateScoreUI();
+        setTimeout(() => { if (state.mode === 'drill' && state.drillActive) nextDrillQuestion(); }, 1600);
+      }
+    }
+
+    // Challenge Mode: 4-step dig & dump
+    const CHALLENGE_STEPS = [
+      { title: '1단계: 붐을 내리고 암을 펴서 굴착 지점(노란 구역)에 버킷을 위치시키세요', hint: '우측 레버 ▲(붐 내림) + 좌측 레버 ▲(암 펴기)' },
+      { title: '2단계: 버킷을 안으로 접어 흙을 퍼담으세요!', hint: '우측 레버 ◀(버킷 접기)' },
+      { title: '3단계: 붐을 올리고 오른쪽으로 선회(+40° 이상)하여 하차 구역으로 이동하세요', hint: '우측 레버 ▼(붐 올림) + 좌측 레버 ▶(우선회)' },
+      { title: '4단계: 버킷을 바깥으로 펴서 흙을 쏟으세요!', hint: '우측 레버 ▶(버킷 펴기)' }
+    ];
+
+    function startChallenge() {
+      state.challengeRunning = true;
+      state.challengeStep = 0;
+      state.hasSoil = false;
+      state.swing = 0;
+      state.boom = 42;
+      state.arm = -68;
+      state.bucket = -35;
+      updateChallengeUI();
+    }
+
+    function updateChallengeUI() {
+      if (!state.challengeRunning) return;
+      const step = CHALLENGE_STEPS[state.challengeStep];
+      document.getElementById('missionProgress').textContent = `문항 ${state.challengeStep + 1}번 / 4`;
+      document.getElementById('missionTitle').textContent = step.title;
+      document.getElementById('missionFeedback').textContent = `시험 모드 진행 중 · 현재 총점: ${state.score}점 (완료 후 [평가 완료·저장]을 누르세요)`;
+    }
+
+    function processChallenge(bucketPos) {
+      if (!state.challengeRunning) return;
+      const s = state.challengeStep;
+      // Ground is at y = canvas.height * 0.78
+      const groundY = canvas.height * 0.80;
+      const digZoneX = canvas.width * 0.65;
+
+      if (s === 0) {
+        if (Math.abs(state.swing) < 25 && bucketPos.y >= groundY - 32 && Math.abs(bucketPos.x - digZoneX) < 75) {
+          state.challengeStep = 1;
+          sfxStep();
+          addLog('🎯 1단계 완료: 굴착 위치 도달!', 'good');
+          updateChallengeUI();
+        }
+      } else if (s === 1) {
+        if (state.bucket <= -85 && bucketPos.y >= groundY - 45) {
+          state.hasSoil = true;
+          state.challengeStep = 2;
+          state.score += 150;
+          sfxStep();
+          addLog('🪨 2단계 완료: 흙 퍼담기 성공! (+150점)', 'good');
+          updateScoreUI();
+          updateChallengeUI();
+        }
+      } else if (s === 2) {
+        if (state.swing >= 40 && state.boom >= 45) {
+          state.challengeStep = 3;
+          sfxStep();
+          addLog('🔄 3단계 완료: 하차 구역 선회 완료!', 'good');
+          updateChallengeUI();
+        }
+      } else if (s === 3) {
+        if (state.bucket >= 10 && state.swing >= 35) {
+          state.hasSoil = false;
+          state.truckSoil++;
+          state.score += 300;
+          state.combo++;
+          sfxCorrect();
+          addLog(`🏆 상차 미션 1회 완수! (+300점 · 누적 ${state.truckSoil}회)`, 'good');
+          updateScoreUI();
+          // Loop back to step 0 for continuous practice
+          state.challengeStep = 0;
+          document.getElementById('missionTitle').textContent = '🎉 상차 성공! 다시 좌선회하여 다음 흙을 파보세요!';
+          document.getElementById('missionFeedback').textContent = `누적 상차 횟수: ${state.truckSoil}회 · 좌측 레버 ◀(좌선회)로 복귀하세요.`;
+        }
+      }
+    }
+
+    function updateScoreUI() {
+      document.getElementById('scoreValue').textContent = state.score;
+      document.getElementById('comboValue').textContent = state.combo;
+    }
+
+    // =========================================================
+    // 7. Physics & Canvas Rendering
+    // =========================================================
+    function resizeCanvas() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function updatePhysics(dt) {
+      if (state.mode === 'drill' && state.returningToDefault) {
+        const lerpRate = Math.min(1, dt * 6);
+        state.swing += (0 - state.swing) * lerpRate;
+        state.boom += (42 - state.boom) * lerpRate;
+        state.arm += (-68 - state.arm) * lerpRate;
+        state.bucket += (-35 - state.bucket) * lerpRate;
+        document.getElementById('telSwing').textContent = `${Math.round(state.swing)}°`;
+        document.getElementById('telBoom').textContent = `${Math.round(state.boom)}°`;
+        document.getElementById('telArm').textContent = `${Math.round(state.arm)}°`;
+        document.getElementById('telBucket').textContent = `${Math.round(state.bucket)}°`;
+        return;
+      }
+
+      const swingSpeed = 65;  // deg/sec
+      const boomSpeed = 38;
+      const armSpeed = 48;
+      const bucketSpeed = 70;
+
+      // Left Stick: X = Swing, Y = Arm (negative = push forward = extend out)
+      state.swing += state.leftX * swingSpeed * dt;
+      if (state.swing > 180) state.swing -= 360;
+      if (state.swing < -180) state.swing += 360;
+
+      // Push forward (leftY < 0) -> arm angle increases toward -25 (extends out)
+      state.arm += (-state.leftY) * armSpeed * dt;
+      state.arm = Math.max(-130, Math.min(-22, state.arm));
+
+      // Right Stick: Y = Boom (negative = push forward = boom down), X = Bucket (negative = curl)
+      // Pull back (rightY > 0) -> boom angle increases (goes up)
+      state.boom += state.rightY * boomSpeed * dt;
+      state.boom = Math.max(10, Math.min(76, state.boom));
+
+      // Right X < 0 (left) -> curl (-115), Right X > 0 (right) -> dump (+35)
+      state.bucket += state.rightX * bucketSpeed * dt;
+      state.bucket = Math.max(-115, Math.min(35, state.bucket));
+
+      // Update telemetry
+      document.getElementById('telSwing').textContent = `${Math.round(state.swing)}°`;
+      document.getElementById('telBoom').textContent = `${Math.round(state.boom)}°`;
+      document.getElementById('telArm').textContent = `${Math.round(state.arm)}°`;
+      document.getElementById('telBucket').textContent = `${Math.round(state.bucket)}°`;
+      document.getElementById('telSoil').textContent = state.hasSoil ? '버킷 상태: 흙 적재됨 🪨' : '버킷 상태: 비어 있음';
+    }
+
+    function drawExcavator() {
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      // Sky gradient
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, h * 0.78);
+      skyGrad.addColorStop(0, '#0b132b');
+      skyGrad.addColorStop(1, '#1e293b');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, w, h * 0.78);
+
+      // Ground
+      const groundY = h * 0.80;
+      ctx.fillStyle = '#3f2e21';
+      ctx.fillRect(0, groundY, w, h - groundY);
+      ctx.fillStyle = '#5c4033';
+      ctx.fillRect(0, groundY, w, 6);
+
+      // Challenge mode zones
+      if (state.mode === 'challenge') {
+        const digX = w * 0.65;
+        ctx.save();
+        ctx.fillStyle = 'rgba(250, 204, 21, 0.22)';
+        ctx.strokeStyle = '#facc15';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.fillRect(digX - 60, groundY - 12, 120, 22);
+        ctx.strokeRect(digX - 60, groundY - 12, 120, 22);
+        ctx.fillStyle = '#fde047';
+        ctx.font = 'bold 12px Noto Sans KR';
+        ctx.textAlign = 'center';
+        ctx.fillText('굴착 구역', digX, groundY + 26);
+        ctx.restore();
+      }
+
+      // Base position (Larger excavator scale!)
+      const baseX = w * 0.25;
+      const baseY = groundY;
+      const scale = Math.min(w / 530, h / 320, 1.55);
+
+      // Undercarriage (Tracks - Fixed on ground)
+      ctx.save();
+      ctx.translate(baseX, baseY);
+      ctx.scale(scale, scale);
+
+      ctx.fillStyle = '#1e293b';
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.roundRect(-72, -26, 144, 26, 13);
+      ctx.fill();
+      ctx.stroke();
+
+      // Track rollers
+      ctx.fillStyle = '#64748b';
+      for (let rx = -52; rx <= 52; rx += 26) {
+        ctx.beginPath();
+        ctx.arc(rx, -13, 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Swing bearing indicator on excavator itself
+      if (Math.abs(state.swing) > 2 || Math.abs(state.leftX) > 0.2) {
+        ctx.save();
+        ctx.strokeStyle = state.swing < 0 ? '#38bdf8' : '#34d399';
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.ellipse(0, -29, 34, 7, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = state.swing < 0 ? '#7dd3fc' : '#6ee7b7';
+        ctx.font = 'bold 10px Noto Sans KR';
+        ctx.textAlign = 'center';
+        const dirLabel = state.swing < -2 ? `↺ 좌선회 ${Math.round(state.swing)}°` : (state.swing > 2 ? `↻ 우선회 +${Math.round(state.swing)}°` : '선회 중');
+        ctx.fillText(dirLabel, 0, -112);
+        ctx.restore();
+      }
+
+      // Upper Cab (foreshortened horizontally by cos(swing) so rotation is visible!)
+      const rawCos = Math.cos((state.swing * Math.PI) / 180);
+      const swingScaleX = (rawCos >= 0 ? 1 : -1) * Math.max(0.24, Math.abs(rawCos));
+
+      ctx.save();
+      ctx.translate(0, -30);
+      ctx.scale(swingScaleX, 1);
+
+      // Counterweight & Body
+      ctx.fillStyle = '#f59e0b';
+      ctx.strokeStyle = '#b45309';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(-55, -42, 95, 40, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      // Rear dark stripe
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(-55, -28, 30, 14);
+
+      // Operator Cab
+      ctx.fillStyle = '#334155';
+      ctx.strokeStyle = '#94a3b8';
+      ctx.beginPath();
+      ctx.roundRect(-5, -72, 42, 34, 5);
+      ctx.fill();
+      ctx.stroke();
+      // Cab glass
+      ctx.fillStyle = '#38bdf8';
+      ctx.globalAlpha = 0.45;
+      ctx.fillRect(3, -67, 28, 22);
+      ctx.globalAlpha = 1;
+
+      // Boom Pivot
+      const boomPivotX = 18;
+      const boomPivotY = -30;
+
+      // Lengths
+      const L_BOOM = 155;
+      const L_ARM = 115;
+      const L_BUCKET = 48;
+
+      const radBoom = (-state.boom * Math.PI) / 180;
+      const boomEndX = boomPivotX + Math.cos(radBoom) * L_BOOM;
+      const boomEndY = boomPivotY + Math.sin(radBoom) * L_BOOM;
+
+      // Arm angle is relative to boom
+      const radArm = radBoom + (-state.arm * Math.PI) / 180;
+      const armEndX = boomEndX + Math.cos(radArm) * L_ARM;
+      const armEndY = boomEndY + Math.sin(radArm) * L_ARM;
+
+      // Bucket angle relative to arm
+      const radBucket = radArm + (-state.bucket * Math.PI) / 180;
+      const bucketTipX = armEndX + Math.cos(radBucket) * L_BUCKET;
+      const bucketTipY = armEndY + Math.sin(radBucket) * L_BUCKET;
+
+      // Draw Hydraulic Cylinders
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      // Boom cylinder
+      ctx.beginPath();
+      ctx.moveTo(boomPivotX + 12, boomPivotY + 8);
+      ctx.lineTo(boomPivotX + Math.cos(radBoom) * (L_BOOM * 0.48), boomPivotY + Math.sin(radBoom) * (L_BOOM * 0.48));
+      ctx.stroke();
+
+      // Draw Boom (bent profile)
+      const midBoomX = boomPivotX + Math.cos(radBoom - 0.16) * (L_BOOM * 0.55);
+      const midBoomY = boomPivotY + Math.sin(radBoom - 0.16) * (L_BOOM * 0.55);
+
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 16;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(boomPivotX, boomPivotY);
+      ctx.lineTo(midBoomX, midBoomY);
+      ctx.lineTo(boomEndX, boomEndY);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#d97706';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(boomPivotX, boomPivotY);
+      ctx.lineTo(midBoomX, midBoomY);
+      ctx.lineTo(boomEndX, boomEndY);
+      ctx.stroke();
+
+      // Draw Arm (Stick)
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = 12;
+      ctx.beginPath();
+      ctx.moveTo(boomEndX, boomEndY);
+      ctx.lineTo(armEndX, armEndY);
+      ctx.stroke();
+
+      // Draw Bucket
+      ctx.save();
+      ctx.translate(armEndX, armEndY);
+      ctx.rotate(radBucket);
+      ctx.fillStyle = '#334155';
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(0, -6);
+      ctx.lineTo(L_BUCKET, -4);
+      ctx.quadraticCurveTo(L_BUCKET + 10, 16, 12, 24);
+      ctx.lineTo(0, 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Soil in bucket
+      if (state.hasSoil) {
+        ctx.fillStyle = '#92400e';
+        ctx.beginPath();
+        ctx.arc(20, 8, 13, 0, Math.PI, false);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // Joint Pins
+      [
+        [boomPivotX, boomPivotY],
+        [boomEndX, boomEndY],
+        [armEndX, armEndY]
+      ].forEach(([jx, jy]) => {
+        ctx.fillStyle = '#0f172a';
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(jx, jy, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      });
+
+      ctx.restore(); // end cab
+      ctx.restore(); // end base
+
+      // Compute world bucket tip for challenge check
+      const worldBucketX = baseX + bucketTipX * scale * swingScaleX;
+      const worldBucketY = baseY - 30 * scale + bucketTipY * scale;
+      processChallenge({ x: worldBucketX, y: worldBucketY });
+
+      // Top-Right Top-Down Swing View (Larger & Clearer)
+      drawSwingRadar(w - 86, 86, 62);
+    }
+
+    function drawSwingRadar(cx, cy, r) {
+      ctx.save();
+      ctx.translate(cx, cy);
+
+      // Background panel
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Title
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = 'bold 10px Noto Sans KR';
+      ctx.textAlign = 'center';
+      ctx.fillText('위에서 본 선회', 0, r + 14);
+
+      // Target dump zone if challenge mode
+      if (state.mode === 'challenge') {
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.28)';
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, r - 4, (-90 + 35) * Math.PI / 180, (-90 + 85) * Math.PI / 180);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Fixed Undercarriage Tracks (Top-down)
+      ctx.fillStyle = '#334155';
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 1.5;
+      ctx.fillRect(-16, -20, 7, 40);
+      ctx.strokeRect(-16, -20, 7, 40);
+      ctx.fillRect(9, -20, 7, 40);
+      ctx.strokeRect(9, -20, 7, 40);
+
+      // Labels
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 10px Noto Sans KR';
+      ctx.fillText('정면', 0, -r + 13);
+      ctx.fillText('좌', -r + 11, 4);
+      ctx.fillText('우', r - 11, 4);
+
+      // Rotating Upper Structure + Boom
+      ctx.rotate((state.swing * Math.PI) / 180);
+      ctx.fillStyle = '#f59e0b';
+      ctx.strokeStyle = '#b45309';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(-11, -12, 22, 26, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      // Boom & Bucket line
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(0, -10);
+      ctx.lineTo(0, -r + 12);
+      ctx.stroke();
+
+      // Bucket tip on top-down
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(-4, -r + 8, 8, 6);
+
+      ctx.restore();
+    }
+
+    // =========================================================
+    // 8. UI Controls & Event Listeners
+    // =========================================================
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.mode-btn').forEach(b => {
+          b.className = 'mode-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer bg-slate-800 text-slate-300 hover:bg-slate-700';
+        });
+        btn.className = 'mode-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer bg-amber-500 text-slate-950';
+
+        const mode = btn.dataset.mode;
+        activateMode(mode);
+      });
+    });
+
+    document.getElementById('btnStartDrill').addEventListener('click', startDrill);
+    document.getElementById('btnStartChallenge').addEventListener('click', startChallenge);
+    document.getElementById('btnRetryDrill').addEventListener('click', () => {
+      document.getElementById('resultModal').classList.add('hidden');
+      startDrill();
+    });
+    document.getElementById('btnCloseResult').addEventListener('click', () => {
+      document.getElementById('resultModal').classList.add('hidden');
+    });
+
+    document.getElementById('btnToggleLabels').addEventListener('click', () => {
+      state.showLabels = !state.showLabels;
+      document.getElementById('labelToggleState').textContent = state.showLabels ? '표시' : '숨김';
+      document.querySelectorAll('.lever-lbl').forEach(el => {
+        el.classList.toggle('opacity-0', !state.showLabels);
+      });
+    });
+
+    document.getElementById('btnMute').addEventListener('click', (e) => {
+      state.muted = !state.muted;
+      e.currentTarget.textContent = state.muted ? '🔇 음소거됨' : '🔊 효과음 켜짐';
+    });
+
+    document.getElementById('btnResetPose').addEventListener('click', () => {
+      state.swing = 0; state.boom = 42; state.arm = -68; state.bucket = -35; state.hasSoil = false;
+    });
+
+    document.getElementById('btnClearLog').addEventListener('click', () => {
+      document.getElementById('logList').innerHTML = '<div class="text-slate-500 italic">레버를 조작하면 기록이 표시됩니다.</div>';
+    });
+
+    // Joystick Modal
+    const jModal = document.getElementById('joystickModal');
+    document.getElementById('btnJoystickModal').addEventListener('click', () => jModal.classList.remove('hidden'));
+    document.getElementById('btnCloseJoystickModal').addEventListener('click', () => jModal.classList.add('hidden'));
+    document.getElementById('btnSaveJoystick').addEventListener('click', () => jModal.classList.add('hidden'));
+
+    document.getElementById('chkInvLY').addEventListener('change', (e) => state.invertLY = e.target.checked);
+    document.getElementById('chkInvRY').addEventListener('change', (e) => state.invertRY = e.target.checked);
+    document.getElementById('chkSwapSticks').addEventListener('change', (e) => state.swapSticks = e.target.checked);
+    document.getElementById('rngDeadzone').addEventListener('input', (e) => {
+      state.deadzone = parseFloat(e.target.value);
+      document.getElementById('deadzoneVal').textContent = state.deadzone.toFixed(2);
+    });
+
+    function activateMode(mode, skipPrompt = false) {
+      if ((mode === 'drill' || mode === 'challenge') && !skipPrompt && (!state.studentId || !state.studentName)) {
+        state.pendingMode = mode;
+        document.getElementById('studentFormError').classList.add('hidden');
+        document.getElementById('studentModal').classList.remove('hidden');
+        return;
+      }
+
+      state.mode = mode;
+      state.drillActive = false;
+      state.challengeRunning = false;
+
+      document.querySelectorAll('.mode-btn').forEach(b => {
+        if (b.dataset.mode === mode) {
+          b.className = 'mode-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer bg-amber-500 text-slate-950';
+        } else {
+          b.className = 'mode-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer bg-slate-800 text-slate-300 hover:bg-slate-700';
+        }
+      });
+
+      const badge = document.getElementById('missionBadge');
+      const btnDrill = document.getElementById('btnStartDrill');
+      const btnChall = document.getElementById('btnStartChallenge');
+      const btnSaveChall = document.getElementById('btnSaveChallenge');
+      const prog = document.getElementById('missionProgress');
+
+      btnDrill.classList.add('hidden');
+      btnChall.classList.add('hidden');
+      btnSaveChall.classList.add('hidden');
+      prog.textContent = '';
+
+      syncExamHintVisibility();
+
+      if (mode === 'free') {
+        badge.textContent = '자유 연습';
+        document.getElementById('missionTitle').textContent = '조이스틱이나 키보드로 굴착기를 자유롭게 움직여 보세요!';
+        document.getElementById('missionFeedback').textContent = '레버를 움직이면 해당 관절과 조작 방향이 실시간으로 표시됩니다.';
+      } else if (mode === 'drill') {
+        badge.textContent = '암기 퀴즈';
+        btnDrill.classList.remove('hidden');
+        btnDrill.textContent = '퀴즈 시작하기';
+        document.getElementById('missionTitle').textContent = '10문제 레버 암기 테스트에 도전하세요!';
+        document.getElementById('missionFeedback').textContent = '상단의 [레버 라벨: 숨김] 버튼을 누르면 실전처럼 암기력을 테스트할 수 있습니다.';
+      } else if (mode === 'challenge') {
+        badge.textContent = '실전 미션';
+        btnChall.classList.remove('hidden');
+        btnSaveChall.classList.remove('hidden');
+        state.score = 0;
+        state.combo = 0;
+        state.truckSoil = 0;
+        updateScoreUI();
+        startChallenge();
+      }
+    }
+
+    function syncExamHintVisibility() {
+      const isExam = (state.mode === 'drill' || state.mode === 'challenge');
+      const show = !isExam && state.showLabels;
+      document.querySelectorAll('.lever-lbl').forEach(el => {
+        el.classList.toggle('opacity-0', !show);
+      });
+      document.getElementById('memoryTipBox').classList.toggle('hidden', isExam);
+      const toggleBtn = document.getElementById('btnToggleLabels');
+      if (isExam) {
+        document.getElementById('labelToggleState').textContent = '시험 중 자동 숨김';
+        toggleBtn.disabled = true;
+        toggleBtn.classList.add('opacity-50', 'cursor-not-allowed');
+      } else {
+        document.getElementById('labelToggleState').textContent = state.showLabels ? '표시' : '숨김';
+        toggleBtn.disabled = false;
+        toggleBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+      }
+    }
+
+    function updateStudentBadge() {
+      const el = document.getElementById('studentBadgeText');
+      if (state.studentId && state.studentName) {
+        el.textContent = `응시자: ${state.studentId} ${state.studentName}`;
+        el.className = 'text-emerald-300 font-bold';
+      } else {
+        el.textContent = '응시자: 미등록';
+        el.className = 'text-slate-300';
+      }
+    }
+
+    function addAssessmentRecord(modeLabel, score, detail, weakness) {
+      const now = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      const timestamp = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      state.records.unshift({
+        id: Date.now() + Math.random().toString(36).slice(2, 6),
+        studentId: state.studentId || '미입력',
+        studentName: state.studentName || '연습생',
+        mode: modeLabel,
+        score: score,
+        detail: detail,
+        weakness: weakness,
+        timestamp: timestamp
+      });
+      saveRecords();
+    }
+
+    function renderTeacherTable() {
+      const q = (document.getElementById('inpSearchRecords').value || '').trim().toLowerCase();
+      const filtered = state.records.filter(r =>
+        r.studentId.toLowerCase().includes(q) || r.studentName.toLowerCase().includes(q)
+      );
+
+      document.getElementById('tchTotalCount').textContent = `${state.records.length}건`;
+      if (state.records.length > 0) {
+        const sum = state.records.reduce((acc, r) => acc + r.score, 0);
+        const max = Math.max(...state.records.map(r => r.score));
+        document.getElementById('tchAvgScore').textContent = `${Math.round(sum / state.records.length)}점`;
+        document.getElementById('tchMaxScore').textContent = `${max}점`;
+      } else {
+        document.getElementById('tchAvgScore').textContent = '0점';
+        document.getElementById('tchMaxScore').textContent = '0점';
+      }
+
+      const tbody = document.getElementById('teacherTableBody');
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-slate-500">표시할 수행평가 기록이 없습니다.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(r => `
+        <tr class="hover:bg-slate-800/40">
+          <td class="px-3 py-2 font-mono text-slate-200">${r.studentId}</td>
+          <td class="px-3 py-2 font-bold text-white">${r.studentName}</td>
+          <td class="px-3 py-2"><span class="px-2 py-0.5 rounded bg-slate-800 text-[11px]">${r.mode}</span></td>
+          <td class="px-3 py-2 text-right font-extrabold text-amber-400">${r.score}</td>
+          <td class="px-3 py-2 text-slate-300">${r.detail}</td>
+          <td class="px-3 py-2 text-slate-400">${r.weakness}</td>
+          <td class="px-3 py-2 text-slate-400 whitespace-nowrap">${r.timestamp}</td>
+          <td class="px-3 py-2 text-center">
+            <button data-del-id="${r.id}" class="btn-del-record text-rose-400 hover:text-rose-300 cursor-pointer font-bold">✕</button>
+          </td>
+        </tr>
+      `).join('');
+
+      tbody.querySelectorAll('.btn-del-record').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.delId;
+          state.records = state.records.filter(r => r.id !== id);
+          saveRecords();
+          renderTeacherTable();
+        });
+      });
+    }
+
+    // Student Modal Events
+    document.getElementById('btnStudentModal').addEventListener('click', () => {
+      state.pendingMode = null;
+      document.getElementById('inpStudentId').value = state.studentId;
+      document.getElementById('inpStudentName').value = state.studentName;
+      document.getElementById('studentFormError').classList.add('hidden');
+      document.getElementById('studentModal').classList.remove('hidden');
+    });
+    document.getElementById('btnCloseStudentModal').addEventListener('click', () => {
+      document.getElementById('studentModal').classList.add('hidden');
+      state.pendingMode = null;
+    });
+    document.getElementById('btnConfirmStudent').addEventListener('click', () => {
+      const sid = document.getElementById('inpStudentId').value.trim();
+      const sname = document.getElementById('inpStudentName').value.trim();
+      if (!sid || !sname) {
+        document.getElementById('studentFormError').classList.remove('hidden');
+        return;
+      }
+      state.studentId = sid;
+      state.studentName = sname;
+      updateStudentBadge();
+      document.getElementById('studentModal').classList.add('hidden');
+      if (state.pendingMode) {
+        const m = state.pendingMode;
+        state.pendingMode = null;
+        activateMode(m, true);
+      }
+    });
+    document.getElementById('btnPracticeWithoutSave').addEventListener('click', () => {
+      document.getElementById('studentModal').classList.add('hidden');
+      if (state.pendingMode) {
+        const m = state.pendingMode;
+        state.pendingMode = null;
+        activateMode(m, true);
+      }
+    });
+
+    // Save Challenge Record button
+    document.getElementById('btnSaveChallenge').addEventListener('click', () => {
+      if (!state.studentId || !state.studentName) {
+        state.pendingMode = null;
+        document.getElementById('studentModal').classList.remove('hidden');
+        addLog('⚠️ 학번과 이름을 먼저 등록한 뒤 저장해 주세요.', 'bad');
+        return;
+      }
+      addAssessmentRecord('실전 굴착·상차', state.score, `상차 ${state.truckSoil}회 완료`, '-');
+      sfxCorrect();
+      addLog(`💾 ${state.studentId} ${state.studentName} 실전 평가 저장 완료 (${state.score}점)`, 'good');
+      document.getElementById('missionFeedback').innerHTML = `<span class="text-emerald-400 font-bold">✅ ${state.studentId} ${state.studentName} 학생의 실전 평가(${state.score}점)가 저장되었습니다!</span>`;
+    });
+
+    // Teacher Modal Events
+    document.getElementById('btnTeacherModal').addEventListener('click', () => {
+      document.getElementById('confirmClearBanner').classList.add('hidden');
+      renderTeacherTable();
+      document.getElementById('teacherModal').classList.remove('hidden');
+    });
+    document.getElementById('btnCloseTeacherModal').addEventListener('click', () => {
+      document.getElementById('teacherModal').classList.add('hidden');
+    });
+    document.getElementById('inpSearchRecords').addEventListener('input', renderTeacherTable);
+
+    document.getElementById('btnClearAllRecords').addEventListener('click', () => {
+      document.getElementById('confirmClearBanner').classList.remove('hidden');
+    });
+    document.getElementById('btnCancelClear').addEventListener('click', () => {
+      document.getElementById('confirmClearBanner').classList.add('hidden');
+    });
+    document.getElementById('btnConfirmClear').addEventListener('click', () => {
+      state.records = [];
+      saveRecords();
+      document.getElementById('confirmClearBanner').classList.add('hidden');
+      renderTeacherTable();
+    });
+
+    document.getElementById('btnExportCSV').addEventListener('click', () => {
+      if (state.records.length === 0) return;
+      const header = ['학번', '이름', '평가유형', '점수', '상세결과', '취약동작', '응시일시'];
+      const rows = state.records.map(r => [r.studentId, r.studentName, r.mode, r.score, r.detail, r.weakness, r.timestamp]);
+      const csv = '\uFEFF' + [header, ...rows].map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `굴착기_수행평가_기록_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
+    // =========================================================
+    // 9. Main Loop
+    // =========================================================
+    let lastTime = performance.now();
+    function loop(now) {
+      const dt = Math.min((now - lastTime) / 1000, 0.05);
+      lastTime = now;
+
+      pollInputs();
+      updatePhysics(dt);
+      updateStickVisuals();
+      processDrill(dt);
+      drawExcavator();
+
+      requestAnimationFrame(loop);
+    }
+
+    window.onload = () => {
+      resizeCanvas();
+      requestAnimationFrame(loop);
+    };
+  </script>
+</body>
+</html>
